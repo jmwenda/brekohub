@@ -1,0 +1,107 @@
+name: Pull request
+on: [pull_request]
+
+jobs:
+  lint_and_test:
+    name: Lint and test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v1
+        with:
+          fetch-depth: 1
+
+      - name: Setup node
+        uses: actions/setup-node@v1
+        with:
+          node-version: 12.x
+
+      - name: Install
+        run: npm ci
+
+      - name: Lint
+        run: |
+          $(npm bin)/eslint src test --ext .js
+          $(npm bin)/sass-lint --verbose -c .sass-lint.yml
+
+      - name: Unit test
+        run: $(npm bin)/mocha 'src/**/*.spec.js'
+
+      - name: Integration test
+        run: $(npm bin)/mocha 'test/integration/**/*.test.js'
+
+  lint_and_test_starter_code:
+    name: Lint and test starter code
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v1
+        with:
+          fetch-depth: 1
+
+      - name: Setup node
+        uses: actions/setup-node@v1
+        with:
+          node-version: 12.x
+
+      - name: Install
+        run: npm ci
+
+      - name: Remove example code
+        run: npm run remove-examples
+
+      - name: Lint
+        run: |
+          $(npm bin)/eslint src test --ext .js
+          $(npm bin)/sass-lint --verbose -c .sass-lint.yml
+
+      - name: Unit test
+        run: $(npm bin)/mocha 'src/**/*.spec.js'
+
+      - name: Integration test
+        run: $(npm bin)/mocha 'test/integration/**/*.test.js'
+
+  review_app_test:
+    name: Test review app
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v1
+        with:
+          fetch-depth: 1
+
+      - name: Install cypress
+        uses: bartlett705/npm-cy@6fa505d818d66409f91d1f42e3b15d50a0cc4886
+        with:
+          args: install cypress
+        env:
+          CI: true
+
+      - name: Wait for review app
+        id: review_app_test
+        uses: niteoweb/reviewapps-deploy-status@v1.3.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          deployments_timeout: 420
+
+      - name: Run cypress e2e tests
+        uses: bartlett705/npm-cy@6fa505d818d66409f91d1f42e3b15d50a0cc4886
+        with:
+          args: run test:e2e:run
+        env:
+          CYPRESS_BASE_URL: ${{ steps.review_app_test.outputs.review_app_url }}
+
+      - name: Run cypress smoke tests
+        uses: bartlett705/npm-cy@6fa505d818d66409f91d1f42e3b15d50a0cc4886
+        with:
+          args: run test:smoke
+        env:
+          CYPRESS_BASE_URL: ${{ steps.review_app_test.outputs.review_app_url }}
+
+      - name: Upload test recordings on fail
+        if: failure()
+        uses: actions/upload-artifact@v1
+        with:
+          name: cypress-videos
+          path: cypress/videos

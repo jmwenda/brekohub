@@ -1,0 +1,22 @@
+{
+  "compilerOptions": {
+    "baseUrl": "./src",
+    "target": "esnext",
+    "experimentalDecorators": true,
+    "plugins": [
+      {
+        "name": "typescript-snapshots-plugin",
+        "snapshotDir": "./",
+        "snapshotCallIdentifiers": [
+          "toMatchSnapshot",
+          "toThrowErrorMatchingSnapshot",
+          "matchSnapshot"
+        ]
+      }
+    ]
+  },
+  "exclude": [
+    "node_modules",
+    "static"
+  ]
+}

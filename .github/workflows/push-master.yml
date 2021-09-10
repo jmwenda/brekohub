@@ -1,0 +1,125 @@
+name: Push master
+on:
+  push:
+    branches:
+    - master
+
+jobs:
+  lint_and_test:
+    name: Lint and test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v1
+        with:
+          fetch-depth: 1
+
+      - name: Setup node
+        uses: actions/setup-node@v1
+        with:
+          node-version: 12.x
+
+      - name: Install
+        run: npm ci
+
+      - name: Lint
+        run: |
+          $(npm bin)/eslint src test --ext .js
+          $(npm bin)/sass-lint --verbose -c .sass-lint.yml
+
+      - name: Unit test
+        run: $(npm bin)/mocha 'src/**/*.spec.js'
+
+      - name: Integration test
+        run: $(npm bin)/mocha 'test/integration/**/*.test.js'
+
+  lint_and_test_starter_code:
+    name: Lint and test starter code
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v1
+        with:
+          fetch-depth: 1
+
+      - name: Setup node
+        uses: actions/setup-node@v1
+        with:
+          node-version: 12.x
+
+      - name: Install
+        run: npm ci
+
+      - name: Remove example code
+        run: npm run remove-examples
+
+      - name: Lint
+        run: |
+          $(npm bin)/eslint src test --ext .js
+          $(npm bin)/sass-lint --verbose -c .sass-lint.yml
+
+      - name: Unit test
+        run: $(npm bin)/mocha 'src/**/*.spec.js'
+
+      - name: Integration test
+        run: $(npm bin)/mocha 'test/integration/**/*.test.js'
+
+  heroku_deploy:
+    name: Deploy to Heroku
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v1
+        with:
+          fetch-depth: 1
+      - name: Heroku login
+        uses: actions/heroku@master
+        with:
+          args: container:login
+        env:
+          HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
+
+      - name: Heroku push
+        uses: actions/heroku@master
+        with:
+          args: container:push -a breko-hub web
+        env:
+          HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
+
+      - name: Heroku release
+        uses: actions/heroku@master
+        with:
+          args: container:release -a breko-hub web
+        env:
+          HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
+
+  cypress_browser_test:
+    name: Test deployed heroku app
+    needs: heroku_deploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v1
+        with:
+          fetch-depth: 1
+
+      - name: Install cypress
+        uses: bartlett705/npm-cy@6fa505d818d66409f91d1f42e3b15d50a0cc4886
+        with:
+          args: install cypress
+        env:
+          CI: true
+
+      - name: Run cypress e2e tests
+        uses: bartlett705/npm-cy@6fa505d818d66409f91d1f42e3b15d50a0cc4886
+        with:
+          args: run test:e2e:run
+        env:
+          CYPRESS_BASE_URL: https://breko-hub.herokuapp.com/
+
+      - name: Run cypress smoke tests
+        uses: bartlett705/npm-cy@6fa505d818d66409f91d1f42e3b15d50a0cc4886
+        with:
+          args: run test:smoke
+        env:
+          CYPRESS_BASE_URL: https://breko-hub.herokuapp.com/
